@@ -1,0 +1,1 @@
+from .bivio import scena_bivio as first_scene
