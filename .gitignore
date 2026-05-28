@@ -1,0 +1,25 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Promemoria privati / appunti che non devono finire su GitHub
+NOTES.md
+
+# Vecchio gitignore (lo abbiamo sostituito con .gitignore standard)
+PTAE.gitignore

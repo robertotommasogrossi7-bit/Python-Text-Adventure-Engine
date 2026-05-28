@@ -1,1 +1,1 @@
-from .bivio import scena_bivio as first_scene
+from .bivio import scena_bivio as first_scene # Importo la scena del bivio e la rinomino "first_scene". Così chi importa "from scenes import first_scene" non si lega al nome interno della funzione (utile se domani la prima scena cambia).
