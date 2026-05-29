@@ -219,11 +219,11 @@ class GameWindow:
     def _text_zone(self, w: int, h: int) -> tuple[int, int, int]:
         """Ritorna (x_left, x_right, y_top) dell'area utile per i testi sulla pagina."""
         if self._is_doppia_spread():
-            return (40, w - 40, int(h * 0.52))
-        # singola: pagina centrata occupa 85% width
-        page_x0 = int(w * 0.075)
-        page_x1 = int(w * 0.925)
-        return (page_x0 + 30, page_x1 - 30, int(h * 0.52))
+            return (40, w - 40, int(h * 0.59))
+        # singola: pagina centrata occupa 70% width
+        page_x0 = int(w * 0.15)
+        page_x1 = int(w * 0.85)
+        return (page_x0 + 30, page_x1 - 30, int(h * 0.59))
 
     # ------------- Image composition (PIL) -------------
 
@@ -329,17 +329,18 @@ class GameWindow:
         return spread
 
     def _compose_singola(self, pagina: Pagina, w: int, h: int) -> "Image.Image":
-        page_w = int(w * 0.85)
+        # pagina singola piu' verticale: 70% larghezza, neri ai lati
+        page_w = int(w * 0.70)
         page_x = (w - page_w) // 2
 
         full = Image.new("RGB", (w, h), tuple(int(COL_BG[i:i+2], 16) for i in (1, 3, 5)))
         page_bg = self._fill_crop(self._load_quaderno_bg(pagina.sfondo_quaderno), page_w, h)
         full.paste(page_bg, (page_x, 0))
 
-        # Disegno opaco 50% in alto della pagina singola
+        # Disegno occupa ~55% altezza in alto della pagina singola
         margin = max(20, page_w // 32)
         drawing_box = (page_x + margin, max(20, h // 30),
-                       page_w - 2 * margin, int(h * 0.48))
+                       page_w - 2 * margin, int(h * 0.55))
         self._paste_drawing_opaque(full, pagina.immagine, drawing_box)
         return full
 
@@ -421,7 +422,7 @@ class GameWindow:
         if self._is_doppia_spread():
             self.entry.place_configure(relwidth=0.82)
         else:
-            self.entry.place_configure(relwidth=0.62)
+            self.entry.place_configure(relwidth=0.52)
 
     # ------------- API thread-safe (game thread) -------------
 
