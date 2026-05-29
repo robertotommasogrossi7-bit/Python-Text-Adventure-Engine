@@ -539,6 +539,7 @@ def _w() -> GameWindow:
 
 def say(text: str) -> None: _w().say(text)
 def ask(prompt: str = "") -> str: return _w().ask(prompt)
+def clear_text() -> None: _w().clear_text()
 def set_image(nome_file: str) -> None: _w().set_image(nome_file)
 def set_coppia(sx: Optional[Pagina], dx: Optional[Pagina]) -> None: _w().set_coppia(sx, dx)
 def set_pagina_corrente(numero: int) -> None: _w().set_pagina_corrente(numero)
