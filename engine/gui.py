@@ -36,11 +36,13 @@ COL_BG = "#0a0a0a"
 COL_INK = "#3a2e1f"
 COL_INK_SOFT = "#6b5a44"
 COL_INK_CHOICE = "#8c4a1b"
+COL_CARTA = "#ece4d0"
 COL_ENTRY_BG = "#ece4d0"
 COL_PLACEHOLDER = "#555555"
 
 DEFAULT_SFONDO = "quaderno.jpeg"
-MAX_TEXT_LINES = 22
+
+_CLEAR_TEXT = object()  # sentinella per svuotare il pannello narrazione
 
 
 class GameWindow:
@@ -57,6 +59,22 @@ class GameWindow:
         self.image_canvas.place(x=0, y=0, relwidth=1, relheight=1)
         self.image_canvas.bind("<Configure>", self._on_canvas_resize)
 
+        # --- Pannello narrazione (Text widget bg carta + scrollbar) ---
+        # Posizionato sotto al disegno, sopra le scelte e l'Entry.
+        self.narration = tk.Text(self.root, bg=COL_CARTA, fg=COL_INK,
+                                 font=("Consolas", 11), state=tk.DISABLED,
+                                 bd=0, padx=14, pady=8, takefocus=False,
+                                 cursor="arrow", relief=tk.FLAT,
+                                 highlightthickness=0, wrap="word", spacing3=2)
+        self.narration_scroll = tk.Scrollbar(self.root, command=self.narration.yview,
+                                             bg=COL_CARTA, troughcolor="#d8cdb0",
+                                             activebackground=COL_INK_SOFT, bd=0,
+                                             highlightthickness=0, width=12)
+        self.narration.config(yscrollcommand=self.narration_scroll.set)
+        self.narration.tag_configure("echo", foreground=COL_INK_CHOICE)
+        # le posizioni precise verranno fissate da _place_narration() che riadatta
+        # a singola vs doppia pagina.
+
         # --- Entry place'd in fondo (unico widget tk sopra al canvas) ---
         self.entry = tk.Entry(self.root, bg=COL_ENTRY_BG, fg=COL_INK,
                               insertbackground=COL_INK, font=("Consolas", 12),
@@ -69,7 +87,6 @@ class GameWindow:
         self._photo: Optional["ImageTk.PhotoImage"] = None
         self._cur_sx: Optional[Pagina] = None
         self._cur_dx: Optional[Pagina] = None
-        self._lines: List[str] = []
         self._choices_text: str = ""
         self._commands_text: str = ""
 
@@ -114,11 +131,22 @@ class GameWindow:
     def _on_submit(self, event) -> None:
         text = self.entry.get()
         self.entry.delete(0, tk.END)
-        self._lines.append(f"> {text}")
-        if len(self._lines) > MAX_TEXT_LINES:
-            self._lines = self._lines[-MAX_TEXT_LINES:]
-        self._redraw_overlay()
+        self._append_narration(f"> {text}", tag="echo")
         self._input_queue.put(text)
+
+    def _append_narration(self, text: str, tag: Optional[str] = None) -> None:
+        self.narration.config(state=tk.NORMAL)
+        if tag:
+            self.narration.insert(tk.END, text + "\n", tag)
+        else:
+            self.narration.insert(tk.END, text + "\n")
+        self.narration.see(tk.END)
+        self.narration.config(state=tk.DISABLED)
+
+    def _clear_narration(self) -> None:
+        self.narration.config(state=tk.NORMAL)
+        self.narration.delete("1.0", tk.END)
+        self.narration.config(state=tk.DISABLED)
 
     def _on_close(self) -> None:
         self._closed = True
@@ -144,20 +172,19 @@ class GameWindow:
             sx, dx = latest_coppia
             if (sx, dx) != (self._cur_sx, self._cur_dx):
                 self._cur_sx, self._cur_dx = sx, dx
-                self._lines = []
+                self._clear_narration()
                 coppia_changed = True
 
-        text_changed = False
         try:
             while True:
                 txt = self._text_queue.get_nowait()
+                if txt is _CLEAR_TEXT:
+                    self._clear_narration()
+                    continue
                 for line in str(txt).split("\n"):
-                    self._lines.append(line)
-                text_changed = True
+                    self._append_narration(line)
         except queue.Empty:
             pass
-        if len(self._lines) > MAX_TEXT_LINES:
-            self._lines = self._lines[-MAX_TEXT_LINES:]
 
         choices_changed = False
         latest_choices = None
@@ -187,7 +214,7 @@ class GameWindow:
 
         if coppia_changed:
             self._redraw_all()
-        elif text_changed or choices_changed or commands_changed:
+        elif choices_changed or commands_changed:
             self._redraw_overlay()
 
         self.root.after(50, self._drain_queues)
@@ -379,27 +406,29 @@ class GameWindow:
         self.image_canvas.delete("all")
         self.image_canvas.create_image(0, 0, image=self._photo, anchor=tk.NW, tags="bg")
 
+        self._place_narration()
         self._redraw_overlay()
+
+    def _place_narration(self) -> None:
+        """Posiziona il Text widget e la scrollbar in funzione di singola/doppia."""
+        if self._is_doppia_spread():
+            relx, relwidth = 0.04, 0.91
+        else:
+            relx, relwidth = 0.16, 0.66
+        # area testo: subito sotto il disegno (~62%), sopra le scelte (~84%)
+        rely_top, relheight = 0.62, 0.215
+        self.narration.place(relx=relx, rely=rely_top, anchor="nw",
+                             relwidth=relwidth, relheight=relheight)
+        self.narration_scroll.place(relx=relx + relwidth, rely=rely_top, anchor="nw",
+                                    relheight=relheight, width=12)
 
     def _redraw_overlay(self) -> None:
         # cancella solo i testi (non lo sfondo)
         self.image_canvas.delete("overlay")
 
         w, h = self._canvas_size()
-        x_left, x_right, y_top = self._text_zone(w, h)
+        x_left, x_right, _ = self._text_zone(w, h)
         text_w = max(100, x_right - x_left)
-
-        # narrazione (allineata a sinistra come scrittura naturale)
-        if self._lines:
-            self.image_canvas.create_text(
-                x_left, y_top,
-                text="\n".join(self._lines),
-                fill=COL_INK,
-                font=("Consolas", 11),
-                anchor=tk.NW,
-                width=text_w,
-                tags="overlay",
-            )
 
         # scelte e comandi: centrati orizzontalmente nella pagina, sopra l'Entry
         center_x = (x_left + x_right) // 2
@@ -438,6 +467,10 @@ class GameWindow:
 
     def say(self, text: str) -> None:
         self._text_queue.put(text)
+
+    def clear_text(self) -> None:
+        """Svuota il pannello narrazione (thread-safe)."""
+        self._text_queue.put(_CLEAR_TEXT)
 
     def ask(self, prompt: str = "") -> str:
         if prompt:
