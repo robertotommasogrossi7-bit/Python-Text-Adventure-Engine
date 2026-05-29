@@ -7,6 +7,7 @@ from models.oggetti import sasso_appuntito
 OGGETTI_BIVIO = [sasso_appuntito]
 
 def scena_bivio(state: dict):
+    state["pagina_corrente"] = 2  # pagina del quaderno: bivio (doppia_sx + doppia_dx)
     state["scene_image"] = "grotta.png"
     print("\nTi trovi davanti un bivio. Scegli 'destra' o 'sinistra'")
 
