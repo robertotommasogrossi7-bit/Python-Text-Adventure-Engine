@@ -1,0 +1,4 @@
+# Unica dipendenza esterna: Pillow.
+# Mi serve per caricare le immagini (PNG e TIFF) dei disegni nella GUI tkinter.
+# tkinter è incluso in Python di default su Windows e macOS.
+Pillow>=10.0
