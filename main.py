@@ -28,6 +28,12 @@ def game_loop(state: dict, scene):
     while state.get("running", True) and current_scene is not None:
         state["inspectables"] = []
         current_scene = current_scene(state)
+    # Una scena ha ritornato None ma il gioco e' ancora "running":
+    # restiamo sulla pagina finale e aspettiamo che l'utente decida di chiudere.
+    if state.get("running", True):
+        gui.set_choices([])
+        gui.set_commands(["esci"])
+        input("\n(Fine. Premi Invio per chiudere il quaderno.)")
 
 def game_main():
     state = {
