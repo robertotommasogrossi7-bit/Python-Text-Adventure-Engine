@@ -237,7 +237,8 @@ class GameWindow:
                     pass
         return Image.new("RGB", (1000, 1400), (236, 228, 208))
 
-    def _fill_crop(self, img: "Image.Image", target_w: int, target_h: int) -> "Image.Image":
+    def _fill_crop(self, img: "Image.Image", target_w: int, target_h: int,
+                   anchor: str = "center") -> "Image.Image":
         iw, ih = img.size
         if iw <= 0 or ih <= 0:
             return Image.new("RGB", (target_w, target_h), (236, 228, 208))
@@ -245,8 +246,13 @@ class GameWindow:
         nw = max(target_w, int(iw * scale))
         nh = max(target_h, int(ih * scale))
         resized = img.resize((nw, nh), Image.LANCZOS)
-        cx = (nw - target_w) // 2
-        cy = (nh - target_h) // 2
+        cx = (nw - target_w) // 2  # crop orizzontale sempre centrato
+        if anchor == "top":
+            cy = 0
+        elif anchor == "bottom":
+            cy = nh - target_h
+        else:
+            cy = (nh - target_h) // 2
         return resized.crop((cx, cy, cx + target_w, cy + target_h))
 
     def _fit(self, img: "Image.Image", target_w: int, target_h: int) -> "Image.Image":
@@ -334,7 +340,8 @@ class GameWindow:
         page_x = (w - page_w) // 2
 
         full = Image.new("RGB", (w, h), tuple(int(COL_BG[i:i+2], 16) for i in (1, 3, 5)))
-        page_bg = self._fill_crop(self._load_quaderno_bg(pagina.sfondo_quaderno), page_w, h)
+        anchor = getattr(pagina, "crop_anchor", "center") or "center"
+        page_bg = self._fill_crop(self._load_quaderno_bg(pagina.sfondo_quaderno), page_w, h, anchor=anchor)
         full.paste(page_bg, (page_x, 0))
 
         # Disegno occupa ~55% altezza in alto della pagina singola
