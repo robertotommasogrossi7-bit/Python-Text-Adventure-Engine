@@ -37,79 +37,34 @@ class GameWindow:
     def __init__(self, title: str = "Text Adventure Engine — Taz"):
         self.root = tk.Tk()
         self.root.title(title)
-        self.root.geometry("980x820")
-        self.root.minsize(720, 600)
+        self.root.geometry("980x740")
+        self.root.minsize(720, 560)
         self.root.configure(bg=COL_BG)
 
-        # --- Canvas immagine ---
+        # --- Canvas immagine (in alto) ---
         self.image_canvas = tk.Canvas(
             self.root,
             bg=COL_CANVAS,
-            height=520,
+            height=440,
             highlightthickness=0,
             bd=0,
             takefocus=False,
         )
-        self.image_canvas.pack(fill=tk.X, padx=10, pady=(10, 6))
+        self.image_canvas.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(10, 6))
         self._photo: Optional["ImageTk.PhotoImage"] = None
         self._current_image_path: Optional[Path] = None
         self.image_canvas.bind("<Configure>", self._on_canvas_resize)
 
         # --- Frame inferiore ---
         bottom = tk.Frame(self.root, bg=COL_BG)
-        bottom.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        bottom.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
 
-        # --- Text widget (narrazione, read-only) ---
-        text_frame = tk.Frame(bottom, bg=COL_BG)
-        text_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
+        # Per garantire la VISIBILITA' del prompt e delle label, li pack-o per primi con side=BOTTOM:
+        # tkinter pack li accumula dal basso. Il Text widget viene packato per ultimo con expand=True
+        # e si prende tutto lo spazio sopra.
 
-        self.text = tk.Text(
-            text_frame,
-            wrap="word",
-            bg=COL_TEXT_BG,
-            fg=COL_TEXT_FG,
-            font=("Consolas", 11),
-            state=tk.DISABLED,
-            bd=0,
-            padx=12,
-            pady=8,
-            insertbackground=COL_TEXT_FG,
-            spacing3=2,
-            takefocus=False,
-            cursor="arrow",
-        )
-        scroll = tk.Scrollbar(text_frame, command=self.text.yview, bg=COL_BG, troughcolor=COL_TEXT_BG)
-        self.text.configure(yscrollcommand=scroll.set)
-        self.text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scroll.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # --- Label scelte del momento ---
-        self.choices_label = tk.Label(
-            bottom,
-            text="",
-            bg=COL_BG,
-            fg=COL_CHOICES,
-            font=("Consolas", 11, "bold"),
-            anchor="w",
-            takefocus=False,
-        )
-        self.choices_label.pack(fill=tk.X, pady=(2, 2))
-
-        # --- Label comandi globali ---
-        self.commands_label = tk.Label(
-            bottom,
-            text="",
-            bg=COL_BG,
-            fg=COL_COMMANDS,
-            font=("Consolas", 10),
-            anchor="w",
-            takefocus=False,
-        )
-        self.commands_label.pack(fill=tk.X, pady=(0, 6))
-
-        # --- Prompt ---
+        # --- Prompt (in fondo) ---
         prompt_frame = tk.Frame(bottom, bg=COL_BG)
-        prompt_frame.pack(fill=tk.X)
         prompt_symbol = tk.Label(
             prompt_frame,
             text=">",
@@ -129,6 +84,56 @@ class GameWindow:
         )
         self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=6)
         self.entry.bind("<Return>", self._on_submit)
+        prompt_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(8, 0))
+
+        # --- Label comandi globali (sopra il prompt) ---
+        self.commands_label = tk.Label(
+            bottom,
+            text="",
+            bg=COL_BG,
+            fg=COL_COMMANDS,
+            font=("Consolas", 10),
+            anchor="w",
+            takefocus=False,
+        )
+        self.commands_label.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 4))
+
+        # --- Label scelte del momento (sopra i comandi) ---
+        self.choices_label = tk.Label(
+            bottom,
+            text="",
+            bg=COL_BG,
+            fg=COL_CHOICES,
+            font=("Consolas", 11, "bold"),
+            anchor="w",
+            takefocus=False,
+        )
+        self.choices_label.pack(side=tk.BOTTOM, fill=tk.X, pady=(2, 2))
+
+        # --- Text widget (sopra tutto, expand) ---
+        text_frame = tk.Frame(bottom, bg=COL_BG)
+        text_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, pady=(0, 6))
+
+        self.text = tk.Text(
+            text_frame,
+            wrap="word",
+            bg=COL_TEXT_BG,
+            fg=COL_TEXT_FG,
+            font=("Consolas", 11),
+            state=tk.DISABLED,
+            bd=0,
+            padx=12,
+            pady=8,
+            insertbackground=COL_TEXT_FG,
+            spacing3=2,
+            takefocus=False,
+            cursor="arrow",
+            height=8,
+        )
+        scroll = tk.Scrollbar(text_frame, command=self.text.yview, bg=COL_BG, troughcolor=COL_TEXT_BG)
+        self.text.configure(yscrollcommand=scroll.set)
+        self.text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
         # --- Code (thread-safe bridge tra game thread e GUI thread) ---
         self._input_queue: "queue.Queue[Optional[str]]" = queue.Queue()
@@ -142,33 +147,30 @@ class GameWindow:
 
         # --- Focus fix: l'entry deve sempre poter ricevere i tasti ---
         self.root.bind_all("<Button-1>", self._refocus_entry, add="+")
-        self.root.bind_all("<KeyPress>", self._redirect_keypress, add="+")
-        self.root.after(100, self._initial_focus)
         self.root.after(50, self._drain_queues)
+        self.root.after(200, self._initial_focus)
 
     def _initial_focus(self) -> None:
-        self.root.lift()
-        self.root.attributes("-topmost", True)
-        self.root.after(300, lambda: self.root.attributes("-topmost", False))
-        self.root.focus_force()
-        self.entry.focus_force()
+        try:
+            self.root.deiconify()
+            self.root.update_idletasks()
+            self.root.lift()
+            self.root.attributes("-topmost", True)
+            self.root.after(400, lambda: self.root.attributes("-topmost", False))
+            self.root.focus_force()
+            self.entry.focus_force()
+            self.entry.icursor(tk.END)
+        except Exception:
+            pass
 
     def _refocus_entry(self, event=None) -> None:
-        # Se il click non e' sull'entry stessa, riporto il focus li'.
         if event is not None and event.widget is self.entry:
             return
-        self.entry.focus_set()
-
-    def _redirect_keypress(self, event) -> None:
-        # Se un tasto viene premuto e il focus non e' sull'entry, lo sposto li'.
-        # Cosi' qualunque tasto scritto finisce nel prompt.
-        if event.widget is self.entry:
-            return
-        if event.keysym in ("Tab", "Escape"):
-            return
-        self.entry.focus_set()
-        if event.char and event.char.isprintable():
-            self.entry.insert(tk.END, event.char)
+        try:
+            self.entry.focus_set()
+            self.entry.icursor(tk.END)
+        except Exception:
+            pass
 
     def _on_submit(self, event) -> None:
         text = self.entry.get()
