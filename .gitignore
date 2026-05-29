@@ -24,5 +24,11 @@ AI_CONTEXT.md
 Personale.txt
 Personale.md
 
+# Documentazione di processo, restano in locale ma fuori dal repo pubblico
+CONTESTO.md
+DECISIONI.md
+QUADERNO_SPEC.md
+QUADERNO_MAP.md
+
 # Vecchio gitignore (lo abbiamo sostituito con .gitignore standard)
 PTAE.gitignore
