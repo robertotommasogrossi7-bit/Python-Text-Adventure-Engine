@@ -100,22 +100,13 @@ QUADERNO_INIZIALE = Quaderno(pagine=[
         tipo="scena",
         riferimento_id="bivio",
         immagine="grotta.png",
-        layout="doppia_sx",
+        layout="singola",
         sfondo_quaderno="quaderno.jpeg",
-        descrizione_breve="risveglio nel bozzolo (pagina sinistra)",
-    ),
-    Pagina(
-        numero=3,
-        tipo="scena",
-        riferimento_id="bivio",
-        immagine=None,
-        layout="doppia_dx",
-        sfondo_quaderno="quaderno_pagina_a.jpeg",
-        descrizione_breve="le due porte del bivio (pagina destra)",
+        descrizione_breve="risveglio nel bozzolo, davanti al bivio",
     ),
 
     Pagina(
-        numero=4,
+        numero=3,
         tipo="oggetto",
         riferimento_id="sasso_appuntito",
         immagine="Avventurina.tiff",
@@ -125,7 +116,7 @@ QUADERNO_INIZIALE = Quaderno(pagine=[
     ),
 
     Pagina(
-        numero=5,
+        numero=4,
         tipo="scena",
         riferimento_id="morte_buio",
         immagine=None,
@@ -141,39 +132,34 @@ QUADERNO_INIZIALE = Quaderno(pagine=[
 if __name__ == "__main__":
     q = QUADERNO_INIZIALE
 
-    # T1: pagina 1 (frontespizio, singola dispari, niente partner singola)
+    # T1: pagina 1 (frontespizio singola dispari) → (1, 2) (entrambe singole)
     sx, dx = q.coppia_visibile(1)
-    assert sx is not None and sx.numero == 1, f"T1 sx: atteso pagina 1, ricevuto {sx}"
-    assert dx is None, f"T1 dx: attesa None (pag 2 e' doppia_sx), ricevuto {dx}"
+    assert sx is not None and sx.numero == 1
+    assert dx is not None and dx.numero == 2
 
-    # T2: pagina 2 (bivio doppia_sx) → coppia (2, 3)
+    # T2: pagina 2 (bivio singola pari) → (1, 2)
     sx, dx = q.coppia_visibile(2)
-    assert sx is not None and sx.numero == 2, f"T2 sx: atteso 2, ricevuto {sx}"
-    assert dx is not None and dx.numero == 3, f"T2 dx: atteso 3, ricevuto {dx}"
+    assert sx is not None and sx.numero == 1
+    assert dx is not None and dx.numero == 2
 
-    # T3: pagina 3 (bivio doppia_dx) → stessa coppia (2, 3)
+    # T3: pagina 3 (sasso singola dispari) → (3, 4)
     sx, dx = q.coppia_visibile(3)
-    assert sx is not None and sx.numero == 2, f"T3 sx: atteso 2, ricevuto {sx}"
-    assert dx is not None and dx.numero == 3, f"T3 dx: atteso 3, ricevuto {dx}"
+    assert sx is not None and sx.numero == 3
+    assert dx is not None and dx.numero == 4
 
-    # T4: pagina 4 (singola pari) → (None, 4) — la 3 e' doppia_dx, non singola
+    # T4: pagina 4 (morte singola pari) → (3, 4)
     sx, dx = q.coppia_visibile(4)
-    assert sx is None, f"T4 sx: attesa None, ricevuto {sx}"
-    assert dx is not None and dx.numero == 4, f"T4 dx: atteso 4, ricevuto {dx}"
-
-    # T5: pagina 5 (singola dispari) → (5, None) — non c'e' una pagina 6
-    sx, dx = q.coppia_visibile(5)
-    assert sx is not None and sx.numero == 5, f"T5 sx: atteso 5, ricevuto {sx}"
-    assert dx is None, f"T5 dx: attesa None, ricevuto {dx}"
+    assert sx is not None and sx.numero == 3
+    assert dx is not None and dx.numero == 4
 
     # Lookup per scena e per oggetto
     bivio_pages = q.per_scena("bivio")
-    assert len(bivio_pages) == 2 and bivio_pages[0].numero == 2 and bivio_pages[1].numero == 3
+    assert len(bivio_pages) == 1 and bivio_pages[0].numero == 2
 
     sasso = q.per_oggetto("sasso_appuntito")
-    assert sasso is not None and sasso.numero == 4
+    assert sasso is not None and sasso.numero == 3
 
     assert q.per_oggetto("inesistente") is None
     assert q.get(999) is None
 
-    print("Tutti i test del quaderno (T1..T5 + lookup) passano.")
+    print("Tutti i test del quaderno passano.")
