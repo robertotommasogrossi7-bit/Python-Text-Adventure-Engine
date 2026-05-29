@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Callable, List, Optional
 
 try:
-    from PIL import Image, ImageDraw, ImageTk
+    from PIL import Image, ImageChops, ImageDraw, ImageTk
     _PIL_AVAILABLE = True
 except ImportError:
     _PIL_AVAILABLE = False
@@ -249,6 +249,36 @@ class GameWindow:
         cy = (nh - target_h) // 2
         return resized.crop((cx, cy, cx + target_w, cy + target_h))
 
+    def _fit(self, img: "Image.Image", target_w: int, target_h: int) -> "Image.Image":
+        """Ridimensiona mantenendo le proporzioni in modo da rientrare nel box (no crop)."""
+        iw, ih = img.size
+        if iw <= 0 or ih <= 0:
+            return Image.new(img.mode, (target_w, target_h))
+        scale = min(target_w / iw, target_h / ih)
+        nw = max(1, int(iw * scale))
+        nh = max(1, int(ih * scale))
+        return img.resize((nw, nh), Image.LANCZOS)
+
+    def _apply_lateral_fade(self, img: "Image.Image", fade_px: int = 32) -> "Image.Image":
+        """Sfuma SOLO i bordi laterali (sinistro/destro) dell'immagine RGBA.
+        Sopra e sotto restano netti. fade_px = larghezza in pixel della sfumatura."""
+        if img.mode != "RGBA":
+            img = img.convert("RGBA")
+        w, h = img.size
+        if w <= 0 or h <= 0 or fade_px <= 0:
+            return img
+        fade_px = min(fade_px, w // 4)
+        mask = Image.new("L", (w, h), 255)
+        d = ImageDraw.Draw(mask)
+        for x in range(fade_px):
+            a = int(255 * (x / fade_px))
+            d.line([(x, 0), (x, h)], fill=a)
+            d.line([(w - 1 - x, 0), (w - 1 - x, h)], fill=a)
+        existing_alpha = img.split()[-1]
+        combined = ImageChops.multiply(existing_alpha, mask)
+        img.putalpha(combined)
+        return img
+
     def _paste_drawing_opaque(self, bg: "Image.Image", filename: Optional[str], box: tuple) -> None:
         if not filename:
             return
@@ -262,10 +292,14 @@ class GameWindow:
         x, y, w, h = box
         if w <= 0 or h <= 0:
             return
-        filled = self._fill_crop(drawing, w, h)
-        if filled.mode != "RGBA":
-            filled = filled.convert("RGBA")
-        bg.paste(filled, (x, y), filled)
+        # fit (no crop) + sfumatura solo laterale ai bordi
+        fitted = self._fit(drawing, w, h)
+        fitted = self._apply_lateral_fade(fitted, fade_px=28)
+        nw, nh = fitted.size
+        # centro orizzontalmente nel box, ancorato in alto
+        ox = x + (w - nw) // 2
+        oy = y
+        bg.paste(fitted, (ox, oy), fitted)
 
     def _aggiungi_rilegatura(self, spread: "Image.Image") -> None:
         w, h = spread.size
