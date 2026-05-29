@@ -18,13 +18,17 @@ def ispeziona_oggetto(obj: Oggetto) -> None:
         print("Non puoi farci niente con questo")
 
 def trova_oggetto_per_comando(oggetti: list[Oggetto], nome: str) -> Optional[Oggetto]:
-    # cerca un oggetto in "oggetti" confrontando "nome_comando" con "nome". Ritorna l'oggetto se trovato, altrimenti None
+    # cerca un oggetto in "oggetti" confrontando "nome_comando" e gli alias con "nome".
     nome_norm = nome.strip().lower() # normalizza il nome inserito da giocatore
     for obj in oggetti:
         cdm_name = str(obj.get("nome_comando", "")).lower() # prende ogni elemento della lista e cerca il "nome_comando"
         if cdm_name == nome_norm: # se sono uguali i nomi
             return obj # returna l'oggetto
-    return None # se non sono uguali returna None
+        aliases = obj.get("alias") or []
+        for a in aliases:
+            if str(a).strip().lower() == nome_norm:
+                return obj
+    return None # se non sono uguali e nessun alias matcha returna None
 
 def format_oggetti_luogo(oggetti: list[Oggetto]) -> str:
     """
@@ -85,11 +89,12 @@ def usa_oggetto(obj: Oggetto, state: dict) -> None:
 # lista oggetti del gioco
 sasso_appuntito: Oggetto = {
     "id": "sasso_appuntito", # ID interno
-    "nome_comando": "sasso", # parola che il giocatore userà: "ispeziona sasso"
-    "nome_visibile": "un sasso appuntito",
+    "nome_comando": "pietra", # parola che il giocatore userà di default
+    "alias": ["sasso", "avventurina"], # nomi alternativi accettati per questa scena
+    "nome_visibile": "una pietra appuntita",
     "descrizione": (
-        "Un piccolo sasso grigio, con un lato molto appuntito. "
-        "Sembra poter essere usato per vari scopi."
+        "Una piccola pietra grigia, con un lato molto appuntito. "
+        "Sembra poter essere usata per vari scopi."
         ),
         "size": 1,
         "damage": 2,
@@ -120,4 +125,3 @@ corazza: Oggetto = {
     "durability": 400,
     "azioni": []  # in futuro: ['indossa', 'togli']
 }
-

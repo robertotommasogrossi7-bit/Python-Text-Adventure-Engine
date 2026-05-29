@@ -7,6 +7,7 @@ from models.oggetti import sasso_appuntito
 OGGETTI_BIVIO = [sasso_appuntito]
 
 def scena_bivio(state: dict):
+    state["scene_image"] = "grotta.png"
     print("\nTi trovi davanti un bivio. Scegli 'destra' o 'sinistra'")
 
     state["inspectables"] = list(OGGETTI_BIVIO)

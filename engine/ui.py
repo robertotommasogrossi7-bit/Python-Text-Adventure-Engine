@@ -14,16 +14,20 @@ def _global_commands_for_state(state: dict) -> List[str]:
         cmds = ["ispeziona", "prendi"] + cmds
     return cmds
 
+
 def print_scene_ui(state: dict, scene_choices: List[str]) -> None:
     """
-    Aggiorna le label "Scelte" e "Comandi" della GUI per la scena corrente.
-    Se ci sono oggetti nella scena, li elenca nel box testo.
+    Aggiorna il pannello scelte/comandi della GUI e ripristina l'immagine di scena.
+    Se ci sono oggetti, li elenca nel box testo.
     """
     inspectables = state.get("inspectables") or []
-
     if inspectables:
         nomi = format_oggetti_luogo(inspectables)
         print(f"Oggetti qui: {nomi}")
+
+    scene_image = state.get("scene_image")
+    if scene_image:
+        gui.set_image(scene_image)
 
     gui.set_choices(scene_choices or [])
     gui.set_commands(_global_commands_for_state(state))

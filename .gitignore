@@ -20,6 +20,9 @@ Thumbs.db
 
 # Promemoria privati / appunti che non devono finire su GitHub
 NOTES.md
+AI_CONTEXT.md
+Personale.txt
+Personale.md
 
 # Vecchio gitignore (lo abbiamo sostituito con .gitignore standard)
 PTAE.gitignore
