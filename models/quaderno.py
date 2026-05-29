@@ -73,17 +73,11 @@ class Quaderno:
                 return (partner, pag)
             return (None, pag)
 
-        # layout "singola": le pagine dispari stanno a sinistra, le pari a destra
-        if numero % 2 == 1:
-            partner = self.get(numero + 1)
-            if partner is not None and partner.layout == "singola":
-                return (pag, partner)
-            return (pag, None)
-        else:
-            partner = self.get(numero - 1)
-            if partner is not None and partner.layout == "singola":
-                return (partner, pag)
-            return (None, pag)
+        # layout "singola": la pagina si presenta da sola al centro.
+        # NON accoppiamo con le pagine adiacenti (era una vecchia idea per
+        # rendering doppia "tutte singole" — generava spillage di disegni dalla
+        # pagina sbagliata, es. l'avventurina che appariva sulla pagina morte).
+        return (pag, None)
 
 
 # --- Quaderno iniziale del gioco ---------------------------------------------
@@ -137,25 +131,18 @@ QUADERNO_INIZIALE = Quaderno(pagine=[
 if __name__ == "__main__":
     q = QUADERNO_INIZIALE
 
-    # T1: pagina 1 (frontespizio singola dispari) → (1, 2) (entrambe singole)
+    # Pagine singole: ognuna si presenta da sola, (pag, None).
     sx, dx = q.coppia_visibile(1)
-    assert sx is not None and sx.numero == 1
-    assert dx is not None and dx.numero == 2
+    assert sx is not None and sx.numero == 1 and dx is None
 
-    # T2: pagina 2 (bivio singola pari) → (1, 2)
     sx, dx = q.coppia_visibile(2)
-    assert sx is not None and sx.numero == 1
-    assert dx is not None and dx.numero == 2
+    assert sx is not None and sx.numero == 2 and dx is None
 
-    # T3: pagina 3 (sasso singola dispari) → (3, 4)
     sx, dx = q.coppia_visibile(3)
-    assert sx is not None and sx.numero == 3
-    assert dx is not None and dx.numero == 4
+    assert sx is not None and sx.numero == 3 and dx is None
 
-    # T4: pagina 4 (morte singola pari) → (3, 4)
     sx, dx = q.coppia_visibile(4)
-    assert sx is not None and sx.numero == 3
-    assert dx is not None and dx.numero == 4
+    assert sx is not None and sx.numero == 4 and dx is None
 
     # Lookup per scena e per oggetto
     bivio_pages = q.per_scena("bivio")
