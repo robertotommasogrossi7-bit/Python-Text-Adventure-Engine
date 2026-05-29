@@ -26,6 +26,10 @@ class Pagina:
     layout: LayoutPagina = "singola"
     sfondo_quaderno: str = "quaderno.jpeg"
     descrizione_breve: str = ""
+    # Per le foto in formato portrait: dove ancorare il crop verticale.
+    # "top" tiene visibile l'inizio della foto (utile per ceralacche/decorazioni in alto).
+    # "center" e' il default, "bottom" tiene il fondo.
+    crop_anchor: str = "center"
 
 
 @dataclass
@@ -93,6 +97,7 @@ QUADERNO_INIZIALE = Quaderno(pagine=[
         layout="singola",
         sfondo_quaderno="quaderno_ceralacca.jpeg",
         descrizione_breve="frontespizio con sigillo di ceralacca",
+        crop_anchor="top",  # la ceralacca sta in alto, non croppiamola via
     ),
 
     Pagina(
