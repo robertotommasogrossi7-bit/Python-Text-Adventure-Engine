@@ -1,64 +1,89 @@
 from engine.input_handler import read_command as _read_command
 from engine.commands import cmd_personaggio, cmd_inventario, inventory_menu
 from models.oggetti import ispeziona_oggetto, trova_oggetto_per_comando, mostra_oggetti_luogo
+from models.quaderno import QUADERNO_INIZIALE
 from engine.character import Character
 from engine.disegno import mostra_disegno
+from engine import gui
 
 PLACEHOLDER_MSG = "Questa opzione funziona, ma adesso torniamo alla scelta principale"
+
+
+def _vai_a_pagina_oggetto(obj: dict, state: dict) -> None:
+    """Salva la pagina di ritorno e salta alla pagina dell'oggetto (se esiste)."""
+    pagina = QUADERNO_INIZIALE.per_oggetto(obj.get("id", ""))
+    if pagina is None:
+        # fallback: vecchia API di immagine se non c'e' pagina dedicata
+        disegno = obj.get("disegno")
+        if disegno:
+            mostra_disegno(disegno)
+        return
+    if "pagina_di_ritorno" not in state:
+        state["pagina_di_ritorno"] = state.get("pagina_corrente")
+    state["pagina_corrente"] = pagina.numero
+    gui.set_pagina_corrente(pagina.numero)
+
+
+def _ripristina_pagina_ritorno(state: dict) -> None:
+    ritorno = state.pop("pagina_di_ritorno", None)
+    if ritorno is not None:
+        state["pagina_corrente"] = ritorno
+        gui.set_pagina_corrente(ritorno)
 
 
 def interact_with_object(obj: dict, state: dict) -> None:
     """
     Sotto-menù di interazione con un oggetto della scena.
-    Mostra il riquadro con il nome dell'oggetto, il disegno se presente,
-    e le azioni: ispeziona / prendi / esci.
+    Salta alla pagina dedicata dell'oggetto nel quaderno e ripristina la pagina
+    di scena all'uscita.
     """
     nome = obj.get("nome_visibile", "Qualcosa")
     azioni = obj.get("azioni", []) or []
 
+    _vai_a_pagina_oggetto(obj, state)
     print(f"\n--- {nome} ---")
-    disegno = obj.get("disegno")
-    if disegno:
-        mostra_disegno(disegno)
 
-    while True:
-        opzioni = ["ispeziona"]
-        if "prendi" in azioni:
-            opzioni.append("prendi")
-        opzioni.append("esci")
-        print(f"Cosa vuoi fare? {' / '.join(opzioni)}")
+    try:
+        while True:
+            opzioni = ["ispeziona"]
+            if "prendi" in azioni:
+                opzioni.append("prendi")
+            opzioni.append("esci")
+            print(f"Cosa vuoi fare? {' / '.join(opzioni)}")
 
-        raw = input("> ")
-        cmd = raw.strip().lower()
+            raw = input("> ")
+            cmd = raw.strip().lower()
 
-        if cmd in {"esci", "indietro", "annulla", ""}:
-            return
-
-        if cmd == "ispeziona":
-            ispeziona_oggetto(obj)
-            continue
-
-        if cmd == "prendi":
-            if "prendi" not in azioni:
-                print("Non puoi prendere questo oggetto.")
-                continue
-            ch = state.get("player")
-            if not isinstance(ch, Character):
-                print("Non hai nessun personaggio attivo")
+            if cmd in {"esci", "indietro", "annulla", ""}:
                 return
-            if not ch.can_hold(obj):
-                print("Hai le mani troppo occupate per prendere", obj.get("nome_visibile", "qualcosa"))
-                print(f"Capacità mani: {ch.hands_capacity} | carico attuale: {ch.hands_load()}")
-                continue
-            ch.hold(obj)
-            inspectables = state.get("inspectables") or []
-            if obj in inspectables:
-                inspectables.remove(obj)
-                state["inspectables"] = inspectables
-            print("Raccogli", obj.get("nome_visibile", "qualcosa"), "e lo tieni in mano.")
-            return
 
-        print("Non ho capito. Scrivi: ispeziona / prendi / esci")
+            if cmd == "ispeziona":
+                ispeziona_oggetto(obj)
+                continue
+
+            if cmd == "prendi":
+                if "prendi" not in azioni:
+                    print("Non puoi prendere questo oggetto.")
+                    continue
+                ch = state.get("player")
+                if not isinstance(ch, Character):
+                    print("Non hai nessun personaggio attivo")
+                    return
+                if not ch.can_hold(obj):
+                    print("Hai le mani troppo occupate per prendere", obj.get("nome_visibile", "qualcosa"))
+                    print(f"Capacità mani: {ch.hands_capacity} | carico attuale: {ch.hands_load()}")
+                    continue
+                ch.hold(obj)
+                inspectables = state.get("inspectables") or []
+                if obj in inspectables:
+                    inspectables.remove(obj)
+                    state["inspectables"] = inspectables
+                print("Raccogli", obj.get("nome_visibile", "qualcosa"), "e lo tieni in mano.")
+                return
+
+            print("Non ho capito. Scrivi: ispeziona / prendi / esci")
+    finally:
+        _ripristina_pagina_ritorno(state)
 
 
 def handle_placeholder(cmd: dict, state: dict) -> bool:
@@ -69,8 +94,7 @@ def handle_placeholder(cmd: dict, state: dict) -> bool:
     verb = cmd.get("verb")
     args = cmd.get("args", [])
 
-    # Se il giocatore digita direttamente il nome di un oggetto in scena,
-    # entriamo nel suo menu di interazione (scorciatoia comoda).
+    # Scorciatoia: scrivere il nome di un oggetto in scena apre il suo menu
     if verb:
         inspectables_now = state.get("inspectables") or []
         obj_diretto = trova_oggetto_per_comando(inspectables_now, verb)
@@ -156,16 +180,15 @@ def handle_placeholder(cmd: dict, state: dict) -> bool:
                 print(f"Capacità mani: {ch.hands_capacity} | carico attuale: {ch.hands_load()}")
                 return True
 
-            ch.hold(obj)
-
-            inspectables.remove(obj)
-            state["inspectables"] = inspectables
-
-            print("Raccogli", obj.get("nome_visibile", "qualcosa"), "e lo tieni in mano.")
-
-            disegno = obj.get("disegno")
-            if disegno:
-                mostra_disegno(disegno)
+            # Mostro brevemente la pagina dell'oggetto (se esiste nel quaderno)
+            _vai_a_pagina_oggetto(obj, state)
+            try:
+                ch.hold(obj)
+                inspectables.remove(obj)
+                state["inspectables"] = inspectables
+                print("Raccogli", obj.get("nome_visibile", "qualcosa"), "e lo tieni in mano.")
+            finally:
+                _ripristina_pagina_ritorno(state)
             return True
 
     return False
