@@ -382,7 +382,7 @@ class GameWindow:
         x_left, x_right, y_top = self._text_zone(w, h)
         text_w = max(100, x_right - x_left)
 
-        # narrazione
+        # narrazione (allineata a sinistra come scrittura naturale)
         if self._lines:
             self.image_canvas.create_text(
                 x_left, y_top,
@@ -394,27 +394,30 @@ class GameWindow:
                 tags="overlay",
             )
 
-        # scelte e comandi sopra l'Entry, sempre nella zona pagina
-        y_choices = int(h * 0.88)
-        y_commands = int(h * 0.915)
+        # scelte e comandi: centrati orizzontalmente nella pagina, sopra l'Entry
+        center_x = (x_left + x_right) // 2
+        y_choices = int(h * 0.855)
+        y_commands = int(h * 0.890)
         if self._choices_text:
             self.image_canvas.create_text(
-                x_left, y_choices,
+                center_x, y_choices,
                 text=self._choices_text,
                 fill=COL_INK_CHOICE,
-                font=("Consolas", 11, "bold"),
-                anchor=tk.NW,
+                font=("Consolas", 12, "bold"),
+                anchor=tk.N,
                 width=text_w,
+                justify="center",
                 tags="overlay",
             )
         if self._commands_text:
             self.image_canvas.create_text(
-                x_left, y_commands,
+                center_x, y_commands,
                 text=self._commands_text,
                 fill=COL_INK_SOFT,
-                font=("Consolas", 10),
-                anchor=tk.NW,
+                font=("Consolas", 11),
+                anchor=tk.N,
                 width=text_w,
+                justify="center",
                 tags="overlay",
             )
 
