@@ -119,3 +119,31 @@
 
 ### N3 — La pietra del bivio è un'avventurina
 - **Decisione**: il sasso/pietra che il giocatore può raccogliere nella prima scena è in realtà un'avventurina (pietra naturale verde traslucida). Il reveal non è ancora narrativo, ma il disegno dell'oggetto (acquerello `Avventurina.tiff`) lo anticipa visivamente quando l'oggetto viene visto da vicino.
+
+---
+
+## M5 — Rendering quaderno: rifinitura visiva (2026-05-29)
+
+### D5.1 — Auto-detect singola/doppia pagina
+- **Decisione**: la GUI decide al volo se mostrare una pagina singola al centro (con sfondo nero ai lati) o una doppia pagina spread. Doppia solo se `sx` e `dx` appartengono alla stessa scena con `layout` `doppia_sx`/`doppia_dx`. In ogni altro caso → singola.
+- **Perché**: una scena/oggetto pensata per una pagina sola visualizzata su doppia lascerebbe metà del quaderno vuota.
+
+### D5.2 — Bivio passa a pagina singola
+- **Decisione**: la scena bivio diventa una pagina singola (pagina 2 del quaderno) con la `grotta.png` che riempie meglio la pagina.
+- **Perché**: il disegno della grotta è 16:9 (1920x1080); una doppia pagina richiede ratio ~3:1 e cropparlo perderebbe ~30% dell'altezza (le grotte stesse). Su pagina singola il fit è naturale.
+- **Conseguenza per future scene a doppia pagina**: Daniela deve disegnare in formato più orizzontale (es. 3000x1000) per riempire un layout doppia.
+- **Rinumero pagine**: 1 frontespizio · 2 bivio · 3 avventurina · 4 morte.
+
+### D5.3 — Disegno opaco (no più multiply blend)
+- **Decisione**: il disegno acquerello viene composto sopra la pagina del quaderno con **fill+crop** (riempie completamente il box senza vuoti) e paste con maschera alpha del PNG (se il file ha alpha). Niente più multiply blend a 0.85.
+- **Perché**: l'utente vuole che le righe del quaderno **siano coperte completamente dove c'è disegno**, e visibili solo dove non c'è. Multiply lasciava trasparire le righe anche sopra l'acquerello, dando un effetto "lavato" non desiderato.
+- **Conseguenza**: se Daniela esporta PNG con alpha sui bordi (acquerello sfumato), l'alpha viene rispettato → l'acquerello "esce" dolcemente dai suoi bordi.
+
+### D5.4 — Testo della scena disegnato sul canvas (no più Text widget)
+- **Decisione**: la narrazione, le scelte e i comandi sono renderizzati direttamente sul `Canvas` di tkinter come `create_text`. Non c'è più un `Text` widget con bg color carta.
+- **Perché**: i widget tkinter non sono trasparenti; il bg color carta dava un rettangolo uniforme che copriva le righe del quaderno. Mettendo il testo sul canvas, le righe del quaderno restano visibili **fra una lettera e l'altra**, integrando narrazione e supporto.
+- **Limite accettato**: l'`Entry` del prompt resta un widget tk con bg color carta (un piccolo rettangolo, perché l'Entry deve essere editabile). È un compromesso visivo accettabile.
+
+### D5.5 — Le righe del libro si "puliscono" al cambio pagina
+- **Decisione**: ogni cambio di `pagina_corrente` resetta l'accumulator del testo della GUI. Ogni pagina del libro è "vergine".
+- **Perché**: coerente con la metafora del quaderno — ogni pagina contiene la propria scena, non l'accumulato narrativo dall'inizio del gioco.
