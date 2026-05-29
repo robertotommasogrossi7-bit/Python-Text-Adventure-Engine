@@ -355,9 +355,9 @@ class GameWindow:
         spread.paste(dx_bg, (half, 0))
         self._aggiungi_rilegatura(spread)
 
-        # Disegno spread sopra entrambe le pagine, 50% in alto
+        # Disegno spread sopra entrambe le pagine
         margin = max(20, w // 40)
-        drawing_box = (margin, max(20, h // 30), w - 2 * margin, int(h * 0.48))
+        drawing_box = (margin, max(15, h // 40), w - 2 * margin, int(h * 0.58))
         self._paste_drawing_opaque(spread, sx.immagine, drawing_box)
         return spread
 
@@ -371,10 +371,10 @@ class GameWindow:
         page_bg = self._fill_crop(self._load_quaderno_bg(pagina.sfondo_quaderno), page_w, h, anchor=anchor)
         full.paste(page_bg, (page_x, 0))
 
-        # Disegno occupa ~55% altezza in alto della pagina singola
+        # Disegno occupa fino al 60% altezza in alto della pagina singola
         margin = max(20, page_w // 32)
-        drawing_box = (page_x + margin, max(20, h // 30),
-                       page_w - 2 * margin, int(h * 0.55))
+        drawing_box = (page_x + margin, max(15, h // 40),
+                       page_w - 2 * margin, int(h * 0.60))
         self._paste_drawing_opaque(full, pagina.immagine, drawing_box)
         return full
 
