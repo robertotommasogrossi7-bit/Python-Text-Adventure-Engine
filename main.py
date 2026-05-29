@@ -20,7 +20,6 @@ from scenes.bivio import scena_bivio
 from engine.character import Character
 from engine.game_input import read_game_command
 from models.oggetti import spada_rozza, corazza
-from engine.disegno import mostra_disegno
 
 
 
@@ -33,10 +32,13 @@ def game_loop(state: dict, scene):
 def game_main():
     state = {
         "running": True,
-        "player": {}
+        "player": {},
+        "pagina_corrente": 1,   # frontespizio del quaderno
     }
 
     try:
+        gui.set_pagina_corrente(1)
+
         name = ask_name(allow_exit=True)
         if name is None:
             print("Chiusura del gioco. A presto!")
@@ -49,8 +51,6 @@ def game_main():
         ch.sheath = spada_rozza          # parte in fodera (non occupa mani)
 
         ch.equip_armor(corazza)          # armatura equipaggiata
-
-        mostra_disegno("grotta.png")
 
         print(f"Benvenuto in Taz, {name}\n")
         print(
