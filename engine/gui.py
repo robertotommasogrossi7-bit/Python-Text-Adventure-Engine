@@ -1,12 +1,17 @@
 """
-GUI integrata 'libro aperto' per il Text Adventure Engine.
+GUI 'quaderno aperto' per il Text Adventure Engine.
 
-Una sola finestra: doppia pagina del quaderno come sfondo (foto reale di Daniela),
-disegno acquerello composto sopra con multiply blend, in basso un pannello color
-carta con testo della scena, scelte, comandi e prompt.
+Modalita' di rendering auto-detect:
+- doppia pagina: se sx e dx sono parte della stessa scena con layout doppia_sx/doppia_dx;
+- singola pagina: in ogni altro caso (la pagina al centro, il resto nero ai lati).
 
-Threading: tkinter NON e' thread-safe. La GUI gira nel main thread (mainloop),
-il game loop in un thread daemon, comunicazione via queue.Queue drenate ogni 50ms.
+Disegno acquerello: opaco (fill+crop nel box 50% in alto), nasconde le righe del
+quaderno dove c'e' disegno. Il testo della scena e' disegnato sul canvas, cosi'
+le righe del quaderno si vedono fra le lettere. Solo l'Entry resta un widget
+tkinter con bg color carta (limite di tkinter: no widget trasparenti).
+
+Threading: GUI nel main thread (mainloop). Game loop in daemon thread.
+Comunicazione via queue.Queue drenate ogni 50ms.
 """
 
 import queue
@@ -16,7 +21,7 @@ from pathlib import Path
 from typing import Callable, List, Optional
 
 try:
-    from PIL import Image, ImageChops, ImageDraw, ImageTk
+    from PIL import Image, ImageDraw, ImageTk
     _PIL_AVAILABLE = True
 except ImportError:
     _PIL_AVAILABLE = False
@@ -27,16 +32,15 @@ ROOT_PROJECT = Path(__file__).resolve().parent.parent
 CARTELLA_DISEGNI = ROOT_PROJECT / "disegni"
 CARTELLA_IMMAGINI = ROOT_PROJECT / "immagini"
 
-# --- Palette ---
-COL_BG = "#1a1a1a"
-COL_CANVAS = "#0a0a0a"
-COL_CARTA = "#ebe4d0"           # color avorio/carta — bg dei widget testo/prompt
-COL_INK = "#3a2e1f"             # marrone scuro come inchiostro
-COL_INK_SOFT = "#6b5a44"        # grigio caldo per i comandi (subordinati)
-COL_INK_CHOICE = "#8c4a1b"      # seppia caldo per le scelte (in risalto)
+COL_BG = "#0a0a0a"
+COL_INK = "#3a2e1f"
+COL_INK_SOFT = "#6b5a44"
+COL_INK_CHOICE = "#8c4a1b"
+COL_ENTRY_BG = "#ece4d0"
 COL_PLACEHOLDER = "#555555"
 
 DEFAULT_SFONDO = "quaderno.jpeg"
+MAX_TEXT_LINES = 22
 
 
 class GameWindow:
@@ -48,54 +52,26 @@ class GameWindow:
         self.root.minsize(900, 620)
         self.root.configure(bg=COL_BG)
 
-        # --- Canvas full-window: ci dipingiamo sopra lo spread del quaderno ---
-        self.image_canvas = tk.Canvas(self.root, bg=COL_CANVAS, highlightthickness=0, bd=0, takefocus=False)
+        # --- Canvas full-window (sfondo + disegno + testi disegnati) ---
+        self.image_canvas = tk.Canvas(self.root, bg=COL_BG, highlightthickness=0, bd=0, takefocus=False)
         self.image_canvas.place(x=0, y=0, relwidth=1, relheight=1)
+        self.image_canvas.bind("<Configure>", self._on_canvas_resize)
+
+        # --- Entry place'd in fondo (unico widget tk sopra al canvas) ---
+        self.entry = tk.Entry(self.root, bg=COL_ENTRY_BG, fg=COL_INK,
+                              insertbackground=COL_INK, font=("Consolas", 12),
+                              bd=0, relief=tk.FLAT, highlightthickness=1,
+                              highlightbackground="#b8a87a", highlightcolor="#8c4a1b")
+        self.entry.place(relx=0.5, rely=0.965, anchor="s", relwidth=0.62, height=34)
+        self.entry.bind("<Return>", self._on_submit)
+
+        # --- Stato di rendering ---
         self._photo: Optional["ImageTk.PhotoImage"] = None
         self._cur_sx: Optional[Pagina] = None
         self._cur_dx: Optional[Pagina] = None
-        self.image_canvas.bind("<Configure>", self._on_canvas_resize)
-
-        # --- Frame 'carta' nella parte inferiore: contiene testo + scelte + prompt ---
-        self.bottom_frame = tk.Frame(self.root, bg=COL_CARTA)
-        self.bottom_frame.place(relx=0.5, rely=0.58, anchor="n", relwidth=0.93, relheight=0.40)
-
-        # Prompt in fondo (side=BOTTOM per resistere al resize)
-        prompt_frame = tk.Frame(self.bottom_frame, bg=COL_CARTA)
-        prompt_symbol = tk.Label(prompt_frame, text=">", bg=COL_CARTA, fg=COL_INK_CHOICE,
-                                 font=("Consolas", 13, "bold"))
-        prompt_symbol.pack(side=tk.LEFT, padx=(8, 6))
-        self.entry = tk.Entry(prompt_frame, bg="#f7f1e0", fg=COL_INK,
-                              insertbackground=COL_INK, font=("Consolas", 12),
-                              bd=0, relief=tk.FLAT, highlightthickness=1,
-                              highlightbackground="#cdbf9b", highlightcolor="#a48d5e")
-        self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=5, padx=(0, 8))
-        self.entry.bind("<Return>", self._on_submit)
-        prompt_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, 8))
-
-        # Label comandi sopra il prompt
-        self.commands_label = tk.Label(self.bottom_frame, text="", bg=COL_CARTA, fg=COL_INK_SOFT,
-                                       font=("Consolas", 10), anchor="w", takefocus=False)
-        self.commands_label.pack(side=tk.BOTTOM, fill=tk.X, padx=12, pady=(0, 2))
-
-        # Label scelte sopra i comandi
-        self.choices_label = tk.Label(self.bottom_frame, text="", bg=COL_CARTA, fg=COL_INK_CHOICE,
-                                      font=("Consolas", 11, "bold"), anchor="w", takefocus=False)
-        self.choices_label.pack(side=tk.BOTTOM, fill=tk.X, padx=12, pady=(4, 2))
-
-        # Text widget: il flusso dell'incipit e della narrazione
-        text_frame = tk.Frame(self.bottom_frame, bg=COL_CARTA)
-        text_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=8, pady=(6, 4))
-
-        self.text = tk.Text(text_frame, wrap="word", bg=COL_CARTA, fg=COL_INK,
-                            font=("Consolas", 11), state=tk.DISABLED, bd=0, padx=10, pady=4,
-                            insertbackground=COL_INK, spacing3=2, takefocus=False, cursor="arrow",
-                            relief=tk.FLAT, highlightthickness=0)
-        scroll = tk.Scrollbar(text_frame, command=self.text.yview, bg=COL_CARTA,
-                              troughcolor="#dcd2b5", activebackground=COL_INK_SOFT)
-        self.text.configure(yscrollcommand=scroll.set)
-        self.text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self._lines: List[str] = []
+        self._choices_text: str = ""
+        self._commands_text: str = ""
 
         # --- Code thread-safe game ↔ GUI ---
         self._input_queue: "queue.Queue[Optional[str]]" = queue.Queue()
@@ -138,7 +114,10 @@ class GameWindow:
     def _on_submit(self, event) -> None:
         text = self.entry.get()
         self.entry.delete(0, tk.END)
-        self._append_text(f"> {text}", color=COL_INK_CHOICE)
+        self._lines.append(f"> {text}")
+        if len(self._lines) > MAX_TEXT_LINES:
+            self._lines = self._lines[-MAX_TEXT_LINES:]
+        self._redraw_overlay()
         self._input_queue.put(text)
 
     def _on_close(self) -> None:
@@ -148,16 +127,22 @@ class GameWindow:
 
     def _on_canvas_resize(self, event) -> None:
         if self._cur_sx is not None or self._cur_dx is not None:
-            self._render_coppia(self._cur_sx, self._cur_dx)
+            self._redraw_all()
 
     def _drain_queues(self) -> None:
+        text_changed = False
         try:
             while True:
-                text = self._text_queue.get_nowait()
-                self._append_text(text)
+                txt = self._text_queue.get_nowait()
+                for line in str(txt).split("\n"):
+                    self._lines.append(line)
+                text_changed = True
         except queue.Empty:
             pass
+        if len(self._lines) > MAX_TEXT_LINES:
+            self._lines = self._lines[-MAX_TEXT_LINES:]
 
+        coppia_changed = False
         latest_coppia = None
         try:
             while True:
@@ -166,9 +151,12 @@ class GameWindow:
             pass
         if latest_coppia is not None:
             sx, dx = latest_coppia
-            self._cur_sx, self._cur_dx = sx, dx
-            self._render_coppia(sx, dx)
+            if (sx, dx) != (self._cur_sx, self._cur_dx):
+                self._cur_sx, self._cur_dx = sx, dx
+                self._lines = []
+                coppia_changed = True
 
+        choices_changed = False
         latest_choices = None
         try:
             while True:
@@ -176,11 +164,12 @@ class GameWindow:
         except queue.Empty:
             pass
         if latest_choices is not None:
-            if latest_choices:
-                self.choices_label.config(text="Scelte:  " + "   ·   ".join(latest_choices))
-            else:
-                self.choices_label.config(text="")
+            new_text = ("Scelte:  " + "   ·   ".join(latest_choices)) if latest_choices else ""
+            if new_text != self._choices_text:
+                self._choices_text = new_text
+                choices_changed = True
 
+        commands_changed = False
         latest_commands = None
         try:
             while True:
@@ -188,25 +177,52 @@ class GameWindow:
         except queue.Empty:
             pass
         if latest_commands is not None:
-            if latest_commands:
-                self.commands_label.config(text="Comandi:  " + ",  ".join(latest_commands))
-            else:
-                self.commands_label.config(text="")
+            new_text = ("Comandi:  " + ",  ".join(latest_commands)) if latest_commands else ""
+            if new_text != self._commands_text:
+                self._commands_text = new_text
+                commands_changed = True
+
+        if coppia_changed:
+            self._redraw_all()
+        elif text_changed or choices_changed or commands_changed:
+            self._redraw_overlay()
 
         self.root.after(50, self._drain_queues)
 
-    # ------------- Rendering helpers (main thread) -------------
+    # ------------- Geometry helpers -------------
 
-    def _append_text(self, text: str, color: Optional[str] = None) -> None:
-        self.text.config(state=tk.NORMAL)
-        if color:
-            tag = f"col_{color}"
-            self.text.tag_configure(tag, foreground=color)
-            self.text.insert(tk.END, text + "\n", tag)
-        else:
-            self.text.insert(tk.END, text + "\n")
-        self.text.see(tk.END)
-        self.text.config(state=tk.DISABLED)
+    def _canvas_size(self) -> tuple[int, int]:
+        w = self.image_canvas.winfo_width()
+        h = self.image_canvas.winfo_height()
+        if w <= 1 or h <= 1:
+            w, h = 1280, 830
+        return w, h
+
+    def _is_doppia_spread(self) -> bool:
+        sx, dx = self._cur_sx, self._cur_dx
+        return (
+            sx is not None and dx is not None
+            and sx.layout == "doppia_sx" and dx.layout == "doppia_dx"
+            and sx.riferimento_id == dx.riferimento_id
+        )
+
+    def _pagina_attiva(self) -> Optional[Pagina]:
+        if self._cur_sx is not None and self._cur_sx.immagine is not None:
+            return self._cur_sx
+        if self._cur_dx is not None and self._cur_dx.immagine is not None:
+            return self._cur_dx
+        return self._cur_sx or self._cur_dx
+
+    def _text_zone(self, w: int, h: int) -> tuple[int, int, int]:
+        """Ritorna (x_left, x_right, y_top) dell'area utile per i testi sulla pagina."""
+        if self._is_doppia_spread():
+            return (40, w - 40, int(h * 0.52))
+        # singola: pagina centrata occupa 85% width
+        page_x0 = int(w * 0.075)
+        page_x1 = int(w * 0.925)
+        return (page_x0 + 30, page_x1 - 30, int(h * 0.52))
+
+    # ------------- Image composition (PIL) -------------
 
     def _load_quaderno_bg(self, filename: Optional[str]) -> "Image.Image":
         if filename:
@@ -216,10 +232,21 @@ class GameWindow:
                     return Image.open(path).convert("RGB")
                 except Exception:
                     pass
-        # fallback: tela color carta
-        return Image.new("RGB", (1200, 1600), tuple(int(COL_CARTA[i:i+2], 16) for i in (1, 3, 5)))
+        return Image.new("RGB", (1000, 1400), (236, 228, 208))
 
-    def _blend_drawing(self, bg: "Image.Image", filename: Optional[str], box: tuple, alpha: float = 0.85) -> None:
+    def _fill_crop(self, img: "Image.Image", target_w: int, target_h: int) -> "Image.Image":
+        iw, ih = img.size
+        if iw <= 0 or ih <= 0:
+            return Image.new("RGB", (target_w, target_h), (236, 228, 208))
+        scale = max(target_w / iw, target_h / ih)
+        nw = max(target_w, int(iw * scale))
+        nh = max(target_h, int(ih * scale))
+        resized = img.resize((nw, nh), Image.LANCZOS)
+        cx = (nw - target_w) // 2
+        cy = (nh - target_h) // 2
+        return resized.crop((cx, cy, cx + target_w, cy + target_h))
+
+    def _paste_drawing_opaque(self, bg: "Image.Image", filename: Optional[str], box: tuple) -> None:
         if not filename:
             return
         path = CARTELLA_DISEGNI / filename
@@ -229,27 +256,13 @@ class GameWindow:
             drawing = Image.open(path).convert("RGBA")
         except Exception:
             return
-
         x, y, w, h = box
-        iw, ih = drawing.size
-        if iw <= 0 or ih <= 0 or w <= 0 or h <= 0:
+        if w <= 0 or h <= 0:
             return
-        scale = min(w / iw, h / ih)
-        nw, nh = max(1, int(iw * scale)), max(1, int(ih * scale))
-        drawing = drawing.resize((nw, nh), Image.LANCZOS)
-        ox = x + (w - nw) // 2
-        oy = y + (h - nh) // 2
-
-        bg_w, bg_h = bg.size
-        if ox < 0 or oy < 0 or ox + nw > bg_w or oy + nh > bg_h:
-            return
-
-        patch_bg = bg.crop((ox, oy, ox + nw, oy + nh))
-        drawing_rgb = drawing.convert("RGB")
-        mult = ImageChops.multiply(patch_bg, drawing_rgb)
-        mask = drawing.split()[-1].point(lambda v: int(v * alpha))
-        final = Image.composite(mult, patch_bg, mask)
-        bg.paste(final, (ox, oy))
+        filled = self._fill_crop(drawing, w, h)
+        if filled.mode != "RGBA":
+            filled = filled.convert("RGBA")
+        bg.paste(filled, (x, y), filled)
 
     def _aggiungi_rilegatura(self, spread: "Image.Image") -> None:
         w, h = spread.size
@@ -263,7 +276,39 @@ class GameWindow:
             ds.line([(x, 0), (x, h)], fill=(0, 0, 0, a))
         spread.paste(shadow, (cx - shadow_w // 2, 0), shadow)
 
-    def _render_coppia(self, sx: Optional[Pagina], dx: Optional[Pagina]) -> None:
+    def _compose_doppia(self, sx: Pagina, dx: Pagina, w: int, h: int) -> "Image.Image":
+        half = w // 2
+        sx_bg = self._fill_crop(self._load_quaderno_bg(sx.sfondo_quaderno), half, h)
+        dx_bg = self._fill_crop(self._load_quaderno_bg(dx.sfondo_quaderno), half, h).transpose(Image.FLIP_LEFT_RIGHT)
+        spread = Image.new("RGB", (w, h))
+        spread.paste(sx_bg, (0, 0))
+        spread.paste(dx_bg, (half, 0))
+        self._aggiungi_rilegatura(spread)
+
+        # Disegno spread sopra entrambe le pagine, 50% in alto
+        margin = max(20, w // 40)
+        drawing_box = (margin, max(20, h // 30), w - 2 * margin, int(h * 0.48))
+        self._paste_drawing_opaque(spread, sx.immagine, drawing_box)
+        return spread
+
+    def _compose_singola(self, pagina: Pagina, w: int, h: int) -> "Image.Image":
+        page_w = int(w * 0.85)
+        page_x = (w - page_w) // 2
+
+        full = Image.new("RGB", (w, h), tuple(int(COL_BG[i:i+2], 16) for i in (1, 3, 5)))
+        page_bg = self._fill_crop(self._load_quaderno_bg(pagina.sfondo_quaderno), page_w, h)
+        full.paste(page_bg, (page_x, 0))
+
+        # Disegno opaco 50% in alto della pagina singola
+        margin = max(20, page_w // 32)
+        drawing_box = (page_x + margin, max(20, h // 30),
+                       page_w - 2 * margin, int(h * 0.48))
+        self._paste_drawing_opaque(full, pagina.immagine, drawing_box)
+        return full
+
+    # ------------- Canvas redraw -------------
+
+    def _redraw_all(self) -> None:
         if not _PIL_AVAILABLE:
             self.image_canvas.delete("all")
             self.image_canvas.create_text(20, 20, anchor="nw",
@@ -272,60 +317,74 @@ class GameWindow:
             return
 
         self.root.update_idletasks()
-        w = self.image_canvas.winfo_width()
-        h = self.image_canvas.winfo_height()
-        if w <= 1 or h <= 1:
-            w, h = 1280, 830
+        w, h = self._canvas_size()
 
-        sx_file = sx.sfondo_quaderno if sx else DEFAULT_SFONDO
-        dx_file = dx.sfondo_quaderno if dx else (sx.sfondo_quaderno if sx else DEFAULT_SFONDO)
-
-        sx_bg = self._load_quaderno_bg(sx_file)
-        dx_bg = self._load_quaderno_bg(dx_file).transpose(Image.FLIP_LEFT_RIGHT)
-
-        half_w = w // 2
-        sx_bg = sx_bg.resize((half_w, h), Image.LANCZOS)
-        dx_bg = dx_bg.resize((w - half_w, h), Image.LANCZOS)
-
-        spread = Image.new("RGB", (w, h))
-        spread.paste(sx_bg, (0, 0))
-        spread.paste(dx_bg, (half_w, 0))
-        self._aggiungi_rilegatura(spread)
-
-        # disegno: spread se entrambe le pagine appartengono alla stessa scena con doppia_sx/doppia_dx
-        is_spread = (
-            sx is not None and dx is not None
-            and sx.layout == "doppia_sx" and dx.layout == "doppia_dx"
-            and sx.riferimento_id == dx.riferimento_id
-            and sx.immagine is not None
-        )
-
-        drawing_h = int(h * 0.50)
-        margin = max(20, w // 40)
-
-        if is_spread:
-            self._blend_drawing(spread, sx.immagine,
-                                box=(margin, max(20, h // 30), w - 2 * margin, drawing_h))
+        if self._is_doppia_spread():
+            img = self._compose_doppia(self._cur_sx, self._cur_dx, w, h)
+        elif self._cur_sx is not None or self._cur_dx is not None:
+            pagina = self._pagina_attiva()
+            if pagina is not None:
+                img = self._compose_singola(pagina, w, h)
+            else:
+                img = Image.new("RGB", (w, h), (10, 10, 10))
         else:
-            if sx is not None and sx.immagine:
-                self._blend_drawing(spread, sx.immagine,
-                                    box=(margin, max(20, h // 30),
-                                         half_w - 2 * margin, drawing_h))
-            if dx is not None and dx.immagine:
-                self._blend_drawing(spread, dx.immagine,
-                                    box=(half_w + margin, max(20, h // 30),
-                                         (w - half_w) - 2 * margin, drawing_h))
+            img = Image.new("RGB", (w, h), (10, 10, 10))
 
-        # se entrambe sono None mostra placeholder al centro
-        if sx is None and dx is None:
-            d = ImageDraw.Draw(spread)
-            d.text((w // 2 - 150, h // 2 - 20),
-                   "(scena ancora da disegnare)",
-                   fill=COL_PLACEHOLDER, font=None)
-
-        self._photo = ImageTk.PhotoImage(spread)
+        self._photo = ImageTk.PhotoImage(img)
         self.image_canvas.delete("all")
-        self.image_canvas.create_image(0, 0, image=self._photo, anchor=tk.NW)
+        self.image_canvas.create_image(0, 0, image=self._photo, anchor=tk.NW, tags="bg")
+
+        self._redraw_overlay()
+
+    def _redraw_overlay(self) -> None:
+        # cancella solo i testi (non lo sfondo)
+        self.image_canvas.delete("overlay")
+
+        w, h = self._canvas_size()
+        x_left, x_right, y_top = self._text_zone(w, h)
+        text_w = max(100, x_right - x_left)
+
+        # narrazione
+        if self._lines:
+            self.image_canvas.create_text(
+                x_left, y_top,
+                text="\n".join(self._lines),
+                fill=COL_INK,
+                font=("Consolas", 11),
+                anchor=tk.NW,
+                width=text_w,
+                tags="overlay",
+            )
+
+        # scelte e comandi sopra l'Entry, sempre nella zona pagina
+        y_choices = int(h * 0.88)
+        y_commands = int(h * 0.915)
+        if self._choices_text:
+            self.image_canvas.create_text(
+                x_left, y_choices,
+                text=self._choices_text,
+                fill=COL_INK_CHOICE,
+                font=("Consolas", 11, "bold"),
+                anchor=tk.NW,
+                width=text_w,
+                tags="overlay",
+            )
+        if self._commands_text:
+            self.image_canvas.create_text(
+                x_left, y_commands,
+                text=self._commands_text,
+                fill=COL_INK_SOFT,
+                font=("Consolas", 10),
+                anchor=tk.NW,
+                width=text_w,
+                tags="overlay",
+            )
+
+        # Aggiorna larghezza dell'Entry in funzione della modalita'
+        if self._is_doppia_spread():
+            self.entry.place_configure(relwidth=0.82)
+        else:
+            self.entry.place_configure(relwidth=0.62)
 
     # ------------- API thread-safe (game thread) -------------
 
@@ -344,7 +403,6 @@ class GameWindow:
         self._coppia_queue.put((sx, dx))
 
     def set_image(self, nome_file: str) -> None:
-        """Back-compat: mostra l'immagine come singola pagina (a sinistra)."""
         if nome_file:
             tmp = Pagina(numero=-1, tipo="intermezzo", riferimento_id="_compat",
                          immagine=nome_file, layout="singola",
@@ -352,9 +410,15 @@ class GameWindow:
             self._coppia_queue.put((tmp, None))
 
     def set_pagina_corrente(self, numero: int) -> None:
-        """Comodita': dato il numero, calcola la coppia e la setta."""
-        sx, dx = self.quaderno.coppia_visibile(numero)
-        self._coppia_queue.put((sx, dx))
+        pag = self.quaderno.get(numero)
+        if pag is None:
+            self._coppia_queue.put((None, None))
+            return
+        if pag.layout in ("doppia_sx", "doppia_dx"):
+            sx, dx = self.quaderno.coppia_visibile(numero)
+            self._coppia_queue.put((sx, dx))
+        else:
+            self._coppia_queue.put((pag, None))
 
     def set_choices(self, choices: List[str]) -> None:
         self._choices_queue.put(list(choices))
