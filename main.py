@@ -59,19 +59,9 @@ def game_main():
         ch.equip_armor(corazza)          # armatura equipaggiata
 
         print(f"Benvenuto in Taz, {name}\n")
-        print(
-            "\nApri gli occhi... vedi per la prima volta in vita tua e l'unico colore che riconosci è il verde."
-            "\nNon riesci a muoverti, quelle cose che sembrano i tuoi arti sono lenti ed appiccicosi..."
-            "\nDopo molto tempo riesci a muovere meglio i tuoi arti e sembra come di nuotare, sei in un fluido, troppo denso per essere acqua."
-            "\nCon calma tasti la parete verde davanti a te, sembra quasi trasparente e al tatto sembra sottile. Metti un po' di forza e la senti cedere;"
-            "\nne metti ancora un po' e si rompe. Cadi sul pavimento con tutto il fluido verde addosso."
-            "\nPiano piano ti alzi e noti una stanza tutta buia, piena di muschio; ti accorgi che della pioggia ti sta cadendo addosso;"
-            "\nguardando meglio ti rendi conto che non è pioggia, ma goccioline che ricoprono tutta la stanza, rendendo l'ambiente umido."
-            "\nTi guardi indietro e noti il bozzolo da dove sei uscito: è ripugnante e rilascia ancora acqua. È durissimo: lasci perdere."
-            "\nDavanti a te due buchi nella parete—come se fossero porte: oltre ci sono due corridoi bui, alti quanto te."
-            "\nCosa fai? Vai nella porta di destra o sinistra?"
-        )
-
+        # L'incipit narrativo (risveglio nel bozzolo) e' adesso lo SCENE_INCIPIT
+        # di scenes/bivio.py: viene mostrato sulla pagina del bivio solo la
+        # prima volta.
         game_loop(state, scena_bivio)
 
 
