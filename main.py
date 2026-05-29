@@ -93,4 +93,5 @@ def main():
     gui.start_game(game_main)
 
 
-main()
+if __name__ == "__main__":
+    main()
