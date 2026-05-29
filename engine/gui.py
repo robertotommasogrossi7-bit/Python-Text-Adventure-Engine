@@ -130,18 +130,9 @@ class GameWindow:
             self._redraw_all()
 
     def _drain_queues(self) -> None:
-        text_changed = False
-        try:
-            while True:
-                txt = self._text_queue.get_nowait()
-                for line in str(txt).split("\n"):
-                    self._lines.append(line)
-                text_changed = True
-        except queue.Empty:
-            pass
-        if len(self._lines) > MAX_TEXT_LINES:
-            self._lines = self._lines[-MAX_TEXT_LINES:]
-
+        # IMPORTANTE: drenare la coppia PRIMA del testo. Altrimenti il primo
+        # prompt (es. "Scegli il nome del tuo personaggio:") viene aggiunto a
+        # self._lines e subito dopo cancellato dal reset al cambio pagina.
         coppia_changed = False
         latest_coppia = None
         try:
@@ -155,6 +146,18 @@ class GameWindow:
                 self._cur_sx, self._cur_dx = sx, dx
                 self._lines = []
                 coppia_changed = True
+
+        text_changed = False
+        try:
+            while True:
+                txt = self._text_queue.get_nowait()
+                for line in str(txt).split("\n"):
+                    self._lines.append(line)
+                text_changed = True
+        except queue.Empty:
+            pass
+        if len(self._lines) > MAX_TEXT_LINES:
+            self._lines = self._lines[-MAX_TEXT_LINES:]
 
         choices_changed = False
         latest_choices = None
