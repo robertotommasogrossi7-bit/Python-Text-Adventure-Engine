@@ -28,6 +28,8 @@ def _ripristina_pagina_ritorno(state: dict) -> None:
     ritorno = state.pop("pagina_di_ritorno", None)
     if ritorno is not None:
         state["pagina_corrente"] = ritorno
+        # forza il ridisegno del testo della scena di ritorno
+        state["_scene_text_page"] = None
         gui.set_pagina_corrente(ritorno)
 
 
@@ -41,14 +43,20 @@ def interact_with_object(obj: dict, state: dict) -> None:
     azioni = obj.get("azioni", []) or []
 
     _vai_a_pagina_oggetto(obj, state)
+
+    # Sulla pagina dell'oggetto NON valgono le scelte/comandi della scena.
+    # Mostriamo solo le azioni applicabili all'oggetto.
+    opzioni = ["ispeziona"]
+    if "prendi" in azioni:
+        opzioni.append("prendi")
+    opzioni.append("esci")
+    gui.set_choices([])
+    gui.set_commands(opzioni)
+
     print(f"\n--- {nome} ---")
 
     try:
         while True:
-            opzioni = ["ispeziona"]
-            if "prendi" in azioni:
-                opzioni.append("prendi")
-            opzioni.append("esci")
             print(f"Cosa vuoi fare? {' / '.join(opzioni)}")
 
             raw = input("> ")
