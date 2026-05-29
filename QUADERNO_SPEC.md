@@ -83,7 +83,7 @@ Data la pagina **corrente** con numero `n`:
 
 ## Quaderno iniziale (esempio-test)
 
-Stato del quaderno al primo lancio del gioco:
+Stato del quaderno al primo lancio del gioco (aggiornato M5 — vedi `DECISIONI.md` D5.2):
 
 ```python
 QUADERNO = Quaderno(pagine=[
@@ -93,20 +93,16 @@ QUADERNO = Quaderno(pagine=[
            descrizione_breve="frontespizio con sigillo di ceralacca"),
 
     Pagina(2, "scena", "bivio",
-           immagine="grotta.png", layout="doppia_sx",
+           immagine="grotta.png", layout="singola",
            sfondo_quaderno="quaderno.jpeg",
-           descrizione_breve="risveglio nel bozzolo"),
-    Pagina(3, "scena", "bivio",
-           immagine=None, layout="doppia_dx",
-           sfondo_quaderno="quaderno_pagina_a.jpeg",
-           descrizione_breve="le due porte del bivio (testo + scelte)"),
+           descrizione_breve="risveglio nel bozzolo, davanti al bivio"),
 
-    Pagina(4, "oggetto", "sasso_appuntito",
+    Pagina(3, "oggetto", "sasso_appuntito",
            immagine="Avventurina.tiff", layout="singola",
            sfondo_quaderno="quaderno_pagina_b.jpeg",
            descrizione_breve="pagina dedicata alla pietra/avventurina"),
 
-    Pagina(5, "scena", "morte_buio",
+    Pagina(4, "scena", "morte_buio",
            immagine=None, layout="singola",
            sfondo_quaderno="quaderno_pagina_c.jpeg",
            descrizione_breve="game over: il sentiero di destra"),
@@ -114,42 +110,41 @@ QUADERNO = Quaderno(pagine=[
 ```
 
 Note sull'esempio:
-- La scena `bivio` occupa **due pagine** (numeri 2 e 3, `doppia_sx` + `doppia_dx`). Il disegno acquerello sta sulla pagina sinistra; testo + scelte stanno sulla destra.
+- Tutte le pagine sono `singola` per la versione attuale del gioco. La modalità doppia (`doppia_sx` + `doppia_dx`) resta supportata dal modello e dal renderer per scene future, ma richiede disegni in **formato orizzontale** (ratio ~3:1) per riempire bene la doppia pagina senza vuoti né cropping.
 - Il `frontespizio` (pagina 1) è la pagina di benvenuto col sigillo di ceralacca; non ha un'illustrazione acquerello, solo lo sfondo del quaderno speciale.
-- L'oggetto `sasso_appuntito` ha la sua pagina (4) col disegno dell'avventurina.
+- L'oggetto `sasso_appuntito` ha la sua pagina (3) col disegno dell'avventurina.
 - `morte_buio` per ora ha solo sfondo (scena non ancora illustrata).
 
-## Esempi-test (comportamentali)
+## Esempi-test (comportamentali — aggiornati M5)
 
 ### T1 — Apertura iniziale
 - `state["pagina_corrente"] = 1`
-- `quaderno.coppia_visibile(1) → (Pagina(1, "intermezzo", ...), pagina_vuota)`
-- La GUI mostra: sinistra = frontespizio con ceralacca; destra = pagina vuota.
+- `quaderno.coppia_visibile(1) → (Pagina(1), Pagina(2))` (entrambe singole, dispari+pari)
+- La GUI è in **modalità singola**: mostra la pagina 1 (frontespizio con ceralacca) al centro, nero ai lati.
 
-### T2 — Apertura scena bivio (doppia)
+### T2 — Apertura scena bivio
 - `state["pagina_corrente"] = 2`
-- `quaderno.coppia_visibile(2) → (Pagina(2, "scena", "bivio"), Pagina(3, "scena", "bivio"))`
-- GUI: sinistra = grotta (acquerello sul quaderno); destra = testo della scena.
+- `quaderno.coppia_visibile(2) → (Pagina(1), Pagina(2))`
+- La GUI è in **modalità singola**: mostra la pagina 2 (bivio, grotta acquerello opaca in alto al 50%).
 
 ### T3 — Ispezione pietra dalla scena bivio
 - Stato pre: `state["pagina_corrente"] = 2`
-- Azione: il giocatore scrive `pietra` → entra in `interact_with_object`
-- Effetto: `state["pagina_di_ritorno"] = 2; state["pagina_corrente"] = 4`
-- `quaderno.coppia_visibile(4) → (pagina_vuota, Pagina(4, "oggetto", "sasso_appuntito"))` (4 è pari)
-- GUI: sinistra = vuota; destra = avventurina sul quaderno.
+- Azione: il giocatore scrive `pietra`
+- Effetto: `state["pagina_di_ritorno"] = 2; state["pagina_corrente"] = 3`
+- `quaderno.coppia_visibile(3) → (Pagina(3), Pagina(4))`
+- GUI singola: pagina 3 (avventurina) al centro.
 
 ### T4 — Uscita dal menu oggetto
-- Stato pre: `state["pagina_corrente"] = 4, state["pagina_di_ritorno"] = 2`
-- Azione: `esci` dal sotto-menu
-- Effetto: `state["pagina_corrente"] = 2; del state["pagina_di_ritorno"]`
-- GUI: torna a mostrare la coppia (2, 3) come in T2.
+- Stato pre: `state["pagina_corrente"] = 3, state["pagina_di_ritorno"] = 2`
+- Azione: `esci`
+- Effetto: ripristino → `state["pagina_corrente"] = 2`
+- GUI singola: torna a mostrare la pagina 2.
 
 ### T5 — Game over destra
-- Stato pre: pagina 2/3 (bivio)
+- Stato pre: pagina 2
 - Azione: `destra` → ritorna `scena_morte_buio`
-- Effetto: `state["pagina_corrente"] = 5`
-- `quaderno.coppia_visibile(5) → (Pagina(5, ...), pagina_vuota)` (5 è dispari)
-- GUI: sinistra = morte_buio sfondo (scena non disegnata, placeholder); destra = vuota.
+- Effetto: `state["pagina_corrente"] = 4`
+- GUI singola: pagina 4 (morte_buio, scena non illustrata; sfondo `quaderno_pagina_c.jpeg`, niente disegno).
 
 ## Fuori scope di questa spec
 
